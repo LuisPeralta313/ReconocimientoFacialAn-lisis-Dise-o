@@ -1,4 +1,5 @@
 import os
+import webbrowser
 import cv2
 import mediapipe as mp
 from fastapi import FastAPI, Response, Query
@@ -78,4 +79,16 @@ def get_asistencia():
 
 if __name__ == "__main__":
     import uvicorn
+
+    # Mostrar los enlaces en la consola
+    print("\n🚀 Servidor de Reconocimiento Facial en Ejecución 🚀\n")
+    print("🔹 Página Web (Interfaz):   http://127.0.0.1:8000/static/index.html")
+    print("🔹 Streaming de Video:      http://127.0.0.1:8000/video_feed")
+    print("🔹 Lista de Asistencias:    http://127.0.0.1:8000/asistencia")
+    print("🔹 API Principal:           http://127.0.0.1:8000/\n")
+
+    # Abrir la página web automáticamente en el navegador
+    webbrowser.open("http://127.0.0.1:8000/static/index.html")
+
+    # Iniciar el servidor
     uvicorn.run(app, host="127.0.0.1", port=8000)
