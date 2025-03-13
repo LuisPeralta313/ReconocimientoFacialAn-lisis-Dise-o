@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Reconocimiento Facial - Asistencia</title>
+    <script>
+        function registrarAsistencia() {
+            let nombre = prompt("Ingrese su nombre:");
+            if (nombre) {
+                fetch(`http://127.0.0.1:8000/registrar_asistencia?nombre=${encodeURIComponent(nombre)}`, {
+                    method: "POST"
+                })
+                .then(response => response.json())
+                .then(data => alert(data.message))
+                .catch(error => alert("Error al registrar asistencia"));
+            }
+        }
+
+        function actualizarAsistencia() {
+            fetch("http://127.0.0.1:8000/asistencia")
+                .then(response => response.json())
+                .then(data => {
+                    let lista = document.getElementById("lista_asistencia");
+                    lista.innerHTML = ""; // Limpiar lista
+                    for (let nombre in data.asistencia) {
+                        let item = document.createElement("li");
+                        item.textContent = `${nombre} - ${data.asistencia[nombre]}`;
+                        lista.appendChild(item);
+                    }
+                });
+        }
+
+        setInterval(actualizarAsistencia, 5000); // Actualiza la lista cada 5 segundos
+    </script>
+</head>
+<body>
+    <h1>Detección Facial en Tiempo Real</h1>
+    <img id="video_feed" src="http://127.0.0.1:8000/video_feed" width="640" height="480">
+    <br><br>
+    <button onclick="registrarAsistencia()">Registrar Asistencia</button>
+    <h2>Asistencias Registradas:</h2>
+    <ul id="lista_asistencia"></ul>
+</body>
+</html>
