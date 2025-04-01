@@ -2,93 +2,116 @@ import os
 import webbrowser
 import cv2
 import mediapipe as mp
-from fastapi import FastAPI, Response, Query
+import mysql.connector
+from fastapi import FastAPI, Query
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import StreamingResponse, JSONResponse
-from datetime import datetime
+from datetime import datetime, date
 import time
+import io
+import csv
 
 app = FastAPI()
 
-# Obtener la ruta absoluta del directorio donde está el script
+# Rutas
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 STATIC_DIR = os.path.join(BASE_DIR, "static")
 
-# Verificar si la carpeta static existe
 if not os.path.exists(STATIC_DIR):
-    raise RuntimeError(f"⚠️ ERROR: La carpeta 'static' no existe en {STATIC_DIR}")
+    raise RuntimeError(f"La carpeta 'static' no existe en {STATIC_DIR}")
 
-# Montar la carpeta estática para servir la página web
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
 # Inicializar MediaPipe
 mp_face_detection = mp.solutions.face_detection
 mp_drawing = mp.solutions.drawing_utils
 
-# Iniciar la cámara
+# Iniciar cámara
 cap = cv2.VideoCapture(0)
 
-# Lista de asistencia
-asistencia = {}
+# Conexión a MySQL
+conexion = mysql.connector.connect(
+    host="localhost",
+    user="root",           # <- Reemplaza esto
+    password="root",   # <- Reemplaza esto
+    database="asistencia_db"
+)
+cursor = conexion.cursor()
 
+# Streaming de cámara
 def generar_frames():
-    """Función generadora para transmitir el video en vivo."""
-    with mp_face_detection.FaceDetection(min_detection_confidence=0.5) as face_detection:
+    with mp_face_detection.FaceDetection(min_detection_confidence=0.5) as detector:
         while True:
             ret, frame = cap.read()
             if not ret:
                 break
+            rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            resultado = detector.process(rgb)
 
-            # Convertir la imagen a RGB para MediaPipe
-            rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-            results = face_detection.process(rgb_frame)
+            if resultado.detections:
+                for d in resultado.detections:
+                    mp_drawing.draw_detection(frame, d)
 
-            # Dibujar las detecciones en la imagen
-            if results.detections:
-                for detection in results.detections:
-                    mp_drawing.draw_detection(frame, detection)
-
-            # Codificar la imagen como JPEG y enviarla en un flujo continuo
             _, buffer = cv2.imencode('.jpg', frame)
-            frame_bytes = buffer.tobytes()
             yield (b'--frame\r\n'
-                   b'Content-Type: image/jpeg\r\n\r\n' + frame_bytes + b'\r\n')
-            
-            time.sleep(0.03)  # Pequeña pausa para optimizar el rendimiento
+                   b'Content-Type: image/jpeg\r\n\r\n' + buffer.tobytes() + b'\r\n')
+            time.sleep(0.03)
 
 @app.get("/")
 def home():
-    return {"message": "Servidor de reconocimiento facial activo"}
+    return {"message": "Servidor activo"}
 
 @app.get("/video_feed")
 def video_feed():
-    """Envía el video en streaming continuo."""
     return StreamingResponse(generar_frames(), media_type="multipart/x-mixed-replace; boundary=frame")
 
 @app.post("/registrar_asistencia")
-def registrar_asistencia(nombre: str = Query(...)):
-    """Registra la asistencia con un nombre proporcionado desde la interfaz web."""
-    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    asistencia[nombre] = timestamp
-    return JSONResponse(content={"message": f"Asistencia registrada para {nombre} a las {timestamp}"})
+def registrar(nombre: str = Query(...)):
+    hoy = date.today()
+    cursor.execute("""
+        SELECT COUNT(*) FROM asistencia
+        WHERE nombre = %s AND DATE(fecha_hora) = %s
+    """, (nombre, hoy))
+    resultado = cursor.fetchone()
+
+    if resultado[0] > 0:
+        return JSONResponse(
+            content={"message": f"❌ Ya registraste tu asistencia hoy, {nombre}"},
+            status_code=400
+        )
+
+    ahora = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    cursor.execute("INSERT INTO asistencia (nombre, fecha_hora) VALUES (%s, %s)", (nombre, ahora))
+    conexion.commit()
+    return JSONResponse(content={"message": f"✅ Asistencia registrada para {nombre} a las {ahora}"})
 
 @app.get("/asistencia")
-def get_asistencia():
-    """Devuelve la lista de personas detectadas y la hora de detección."""
-    return {"asistencia": asistencia}
+def ver_asistencia():
+    cursor.execute("SELECT nombre, fecha_hora FROM asistencia ORDER BY fecha_hora DESC")
+    datos = cursor.fetchall()
+    return {"asistencia": [{"nombre": n, "fecha_hora": f.strftime("%Y-%m-%d %H:%M:%S")} for n, f in datos]}
+
+@app.get("/exportar_csv")
+def exportar_csv():
+    cursor.execute("SELECT nombre, fecha_hora FROM asistencia ORDER BY fecha_hora DESC")
+    filas = cursor.fetchall()
+
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(["Nombre", "Fecha y Hora"])
+    for fila in filas:
+        writer.writerow([fila[0], fila[1].strftime("%Y-%m-%d %H:%M:%S")])
+
+    output.seek(0)
+    return StreamingResponse(
+        iter([output.getvalue()]),
+        media_type="text/csv",
+        headers={"Content-Disposition": "attachment; filename=asistencias.csv"}
+    )
 
 if __name__ == "__main__":
-    import uvicorn
-
-    # Mostrar los enlaces en la consola
-    print("\n🚀 Servidor de Reconocimiento Facial en Ejecución 🚀\n")
-    print("🔹 Página Web (Interfaz):   http://127.0.0.1:8000/static/index.html")
-    print("🔹 Streaming de Video:      http://127.0.0.1:8000/video_feed")
-    print("🔹 Lista de Asistencias:    http://127.0.0.1:8000/asistencia")
-    print("🔹 API Principal:           http://127.0.0.1:8000/\n")
-
-    # Abrir la página web automáticamente en el navegador
+    print("\nServidor iniciado en:")
+    print("http://127.0.0.1:8000/static/index.html")
     webbrowser.open("http://127.0.0.1:8000/static/index.html")
-
-    # Iniciar el servidor
+    import uvicorn
     uvicorn.run(app, host="127.0.0.1", port=8000)
