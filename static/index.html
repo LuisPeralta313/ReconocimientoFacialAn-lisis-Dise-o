@@ -4,176 +4,140 @@
   <meta charset="UTF-8">
   <title>Control de Asistencia Facial</title>
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css">
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/animate.css@4.1.1/animate.min.css" />
-
   <link rel="stylesheet" href="/static/style.css">
+  <style>
+    .alert-flotante {
+      position: fixed;
+      top: 1rem;
+      right: 1rem;
+      z-index: 9999;
+      min-width: 250px;
+      display: none;
+    }
+  </style>
 </head>
 <body>
+
   <!-- Encabezado -->
-  <nav class="navbar navbar-expand-lg mb-4">
-    <div class="container">
-      <div class="text-end text-white mb-2">
-        <span id="reloj"></span>
-      </div>
+  <nav class="navbar navbar-dark bg-dark mb-4 shadow">
+    <div class="container d-flex justify-content-between">
       <a class="navbar-brand" href="#">📸 GOSSFACE</a>
+      <div class="text-white" id="reloj"></div>
     </div>
   </nav>
 
   <div class="container">
-    <!-- Sección de cámara -->
+
+    <!-- Video en tiempo real -->
     <div class="card mb-4">
       <div class="card-header">
-        <h4>Video en Tiempo Real</h4>
+        <h4 class="mb-0">Video en Tiempo Real</h4>
       </div>
-      <div class="card-body video-container">
-        <img src="http://127.0.0.1:8000/video_feed" width="640" height="480" class="rounded-video">
+      <div class="card-body text-center">
+        <img src="http://127.0.0.1:8000/video_feed" width="640" height="480" class="rounded">
       </div>
     </div>
 
-    <!-- Botones y mensaje -->
+    <!-- Botones -->
     <div class="text-center mb-4">
-      <button class="btn btn-primary btn-lg me-2" data-bs-toggle="modal" data-bs-target="#modalAsistencia">Registrar Asistencia</button>
-      <a href="http://127.0.0.1:8000/exportar_csv" class="btn btn-outline-light btn-lg ms-2" title="Exportar CSV" download>
-        <i class="bi bi-download me-2"></i> Exportar CSV
+      <a href="http://127.0.0.1:8000/exportar_csv" class="btn btn-outline-success btn-lg" download>
+        <i class="bi bi-download"></i> Exportar CSV
       </a>
     </div>
-    <div id="mensaje" class="text-center mb-4"></div>
-    <div class="text-center text-white mb-4">
-      <span id="contador_asistencia">👥 Asistencias hoy: 0</span>
-    </div>
 
-    <!-- Lista de asistencias -->
-    <div class="card mb-5">
+    <!-- Tabla de asistencia -->
+    <div class="card">
       <div class="card-header">
-        <h4>📋 Asistencias Registradas</h4>
+        <h5 class="mb-0">📋 Últimas Asistencias</h5>
       </div>
       <div class="card-body p-0">
-        <div class="table-responsive">
-          <table class="table table-dark table-striped table-hover mb-0">
-            <thead>
-              <tr>
-                <th>Nombre</th>
-                <th>Fecha y Hora</th>
-              </tr>
-            </thead>
-            <tbody id="tabla_asistencia"></tbody>
-          </table>
-        </div>
+        <table class="table table-dark table-hover mb-0">
+          <thead>
+            <tr>
+              <th>Estado</th>
+              <th>Nombre</th>
+              <th>Fecha y Hora</th>
+            </tr>
+          </thead>
+          <tbody id="tabla_asistencia"></tbody>
+        </table>
       </div>
     </div>
-  </div>
 
-  <!-- Modal Bootstrap -->
-  <div class="modal fade" id="modalAsistencia" tabindex="-1" aria-labelledby="modalLabel" aria-hidden="true">
-    <div class="modal-dialog">
-      <div class="modal-content bg-dark text-white">
-        <div class="modal-header">
-          <h5 class="modal-title" id="modalLabel">Registrar Asistencia</h5>
-          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Cerrar"></button>
-        </div>
-        <div class="modal-body">
-          <input type="text" id="nombreInput" class="form-control" placeholder="Ingresa tu nombre">
-        </div>
-        <div class="modal-footer">
-          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-          <button type="button" class="btn btn-primary" onclick="enviarAsistencia()">Confirmar</button>
-        </div>
-      </div>
-    </div>
+    <!-- Alerta flotante -->
+    <div id="alerta" class="alert alert-success alert-flotante" role="alert"></div>
+
   </div>
 
   <script>
-    function enviarAsistencia() {
-      const nombre = document.getElementById("nombreInput").value;
-      const mensaje = document.getElementById("mensaje");
-
-      if (nombre.trim() !== "") {
-        fetch(`http://127.0.0.1:8000/registrar_asistencia?nombre=${encodeURIComponent(nombre)}`, {
-          method: "POST"
-        })
-        .then(response => response.json().then(data => ({ status: response.status, body: data })))
-        .then(({ status, body }) => {
-          const modal = bootstrap.Modal.getInstance(document.getElementById('modalAsistencia'));
-          modal.hide();
-          document.getElementById("nombreInput").value = "";
-          if (status === 200) {
-            mensaje.innerHTML = `<div class="alert alert-success">${body.message}</div>`;
-            actualizarAsistencia();
-          } else {
-            mensaje.innerHTML = `<div class="alert alert-danger">${body.message}</div>`;
-          }
-        })
-        .catch(() => {
-          mensaje.innerHTML = `<div class="alert alert-danger">Error al registrar asistencia</div>`;
-        });
-      }
+    // Alerta flotante
+    function mostrarAlerta(mensaje) {
+      const alerta = document.getElementById("alerta");
+      alerta.textContent = mensaje;
+      alerta.style.display = "block";
+      setTimeout(() => {
+        alerta.style.display = "none";
+      }, 3000);
     }
 
-    function actualizarAsistencia() {
-  fetch("http://127.0.0.1:8000/asistencias")
-    .then(res => res.json())
-    .then(data => {
-      const tabla = document.getElementById("tabla_asistencia");
-      tabla.innerHTML = "";
-
-      const hoy = new Date().toISOString().split("T")[0];
-
-      // Mostrar solo las 10 más recientes
-      const ultimas = data.asistencia.slice(0, 10);
-
-      ultimas.forEach((item, index) => {
-        const esHoy = item.fecha_hora.startsWith(hoy);
-        const icono = esHoy ? "🟢" : "📅";
-        const row = document.createElement("tr");
-
-        row.innerHTML = `
-          <td><strong>#${index + 1}</strong> ${icono} <strong>${item.nombre}</strong></td>
-          <td class="text-light">${item.fecha_hora}</td>
-        `;
-
-        row.classList.add("animate__animated", "animate__fadeIn");
-        tabla.appendChild(row);
-      });
-    });
-}
-
-
+    // Reloj
     function actualizarReloj() {
-      const reloj = document.getElementById("reloj");
       const ahora = new Date();
-      reloj.innerText = ahora.toLocaleString();
+      document.getElementById("reloj").textContent = ahora.toLocaleString();
+    }
+    setInterval(actualizarReloj, 1000);
+    actualizarReloj();
+
+    // Cargar asistencias (últimos 5)
+    function actualizarAsistencia() {
+      fetch("http://127.0.0.1:8000/asistencias")
+        .then(res => res.json())
+        .then(data => {
+          const tabla = document.getElementById("tabla_asistencia");
+          tabla.innerHTML = "";
+
+          const hoy = new Date().toISOString().split("T")[0];
+          const ultimosCinco = data.asistencia.slice(0, 5); // Solo los primeros 5 registros
+
+          ultimosCinco.forEach(item => {
+            const fecha = item.fecha_hora.split(" ")[0];
+            const icono = fecha === hoy ? "✅" : "🕒";
+
+            const fila = document.createElement("tr");
+            fila.innerHTML = `
+              <td>${icono}</td>
+              <td>${item.nombre}</td>
+              <td>${item.fecha_hora}</td>
+            `;
+            tabla.appendChild(fila);
+          });
+        });
     }
 
-    function contarAsistenciasHoy() {
+    // Verificar nuevos registros
+    let nombresDetectados = new Set();
+
+    function verificarNuevasAsistencias() {
       fetch("http://127.0.0.1:8000/asistencias")
         .then(res => res.json())
         .then(data => {
           const hoy = new Date().toISOString().split("T")[0];
-          const asistenciasHoy = data.asistencia.filter(item => item.fecha_hora.startsWith(hoy));
-          document.getElementById("contador_asistencia").innerText = `👥 Asistencias hoy: ${asistenciasHoy.length}`;
+
+          data.asistencia.forEach(item => {
+            const id = item.nombre + item.fecha_hora;
+            if (!nombresDetectados.has(id)) {
+              nombresDetectados.add(id);
+              if (item.fecha_hora.startsWith(hoy)) {
+                mostrarAlerta(`✅ Asistencia registrada: ${item.nombre}`);
+              }
+            }
+          });
         });
     }
 
-    window.onload = () => {
-      actualizarReloj();
-      actualizarAsistencia();
-      contarAsistenciasHoy();
-      setInterval(actualizarReloj, 1000);
-      setInterval(actualizarAsistencia, 5000);
-      setInterval(contarAsistenciasHoy, 5000);
-    };
-
-    const modalAsistencia = document.getElementById('modalAsistencia');
-    modalAsistencia.addEventListener('shown.bs.modal', () => {
-      document.getElementById('nombreInput').focus();
-    });
-
-    document.getElementById('nombreInput').addEventListener('keypress', function (e) {
-      if (e.key === 'Enter') {
-        enviarAsistencia();
-      }
-    });
+    actualizarAsistencia();
+    setInterval(actualizarAsistencia, 5000);
+    setInterval(verificarNuevasAsistencias, 4000);
   </script>
 
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
