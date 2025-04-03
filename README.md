@@ -46,7 +46,18 @@ ReconocimientoFacial/
 Ejecutar en consola:
 
 ```bash
-py -3.10 -m pip install mediapipe opencv-python fastapi uvicorn mysql-connector-python
+py -3.10 -m pip install fastapi uvicorn
+py -3.10 -m pip install mysql-connector-python
+py -3.10 -m pip install python-multipart
+py -3.10 -m pip install opencv-python
+py -3.10 -m pip install face_recognition
+
+si face_recognition da problemas de instalacion:
+py -3.10 -m pip install cmake
+py -3.10 -m pip install dlib
+
+
+
 ```
 
 ---
@@ -56,13 +67,12 @@ py -3.10 -m pip install mediapipe opencv-python fastapi uvicorn mysql-connector-
 Con MySQL Workbench o consola, ejecutá:
 
 ```sql
-CREATE DATABASE IF NOT EXISTS asistencia_db;
-USE asistencia_db;
-
-CREATE TABLE IF NOT EXISTS asistencia (
+CREATE DATABASE IF NOT EXISTS asistencias;
+USE asistencias;
+CREATE TABLE IF NOT EXISTS asistencias (
     id INT AUTO_INCREMENT PRIMARY KEY,
     nombre VARCHAR(100) NOT NULL,
-    fecha_hora DATETIME NOT NULL
+    fecha DATETIME NOT NULL
 );
 ```
 
@@ -102,4 +112,8 @@ http://127.0.0.1:8000/exportar_csv
 Presioná `Ctrl + C` en la terminal para cerrar el servidor.
 
 
+---
+---
+uvicorn server:app --reload
+http://127.0.0.1:8000/static/index.html
 ---
